@@ -51,13 +51,16 @@ enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
 // main
 int main(int argc, char** argv);
 // recursive evaluation of input
-long eval(mpc_ast_t* t);
+lval eval(mpc_ast_t* t);
 // evaluation of operators
-long eval_op(long x, char* op, long y);
+lval eval_op(lval x, char* op, lval y);
 
 // lval num and err type functions
 lval lval_num(long x);
 lval lval_err(int x);
+// lval printing functions
+void lval_print(lval v);
+void lval_println(lval v);
 
 /*--------------------------------------------------------*/
 // MAIN
@@ -96,8 +99,8 @@ int main(int argc, char** argv) {
 			// mpc_ast_print(r.output);
 
 			// on success, evaluate AST
-			long result = eval(r.output);
-			printf("%li\n", result);
+			lval result = eval(r.output);
+			lval_println(result);
 			mpc_ast_delete(r.output);
 
 
@@ -107,10 +110,6 @@ int main(int argc, char** argv) {
 			mpc_err_print(r.error);
 			mpc_err_delete(r.error);
 		}
-
-		
-
-		// printf("No you're a %s\n", input);
 
 		free(input);
 	}
@@ -162,20 +161,27 @@ void lval_print(lval v) {
 	}
 }
 
+void lval_println(lval v) { 
+	lval_print(v); 
+	putchar('\n'); 
+}
+
 /*--------------------------------------------------------*/
 // EVALUATION FUNCTIONS (and errors)
-long eval(mpc_ast_t* t) {
+lval eval(mpc_ast_t* t) {
 
 	/* If tagged as number return it directly. */
 	if (strstr(t->tag, "number")) {
-		return atoi(t->contents);
+		errno = 0;
+		long x = strtol(t->contents, NULL, 10);
+		return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
 	}
 
 	/* The operator is always second child. */
 	char* op = t->children[1]->contents;
 
 	/* We store the third child in `x` */
-	long x = eval(t->children[2]);
+	lval x = eval(t->children[2]);
 
 	/* Iterate the remaining children and combining. */
 	int i = 3;
@@ -187,12 +193,24 @@ long eval(mpc_ast_t* t) {
 	return x;
 }
 
-long eval_op(long x, char* op, long y) {
-	if (strcmp(op, "+") == 0) { return x + y; }
-	if (strcmp(op, "-") == 0) { return x - y; }
-	if (strcmp(op, "*") == 0) { return x * y; }
-	if (strcmp(op, "/") == 0) { return x / y; }
-	return 0;
+lval eval_op(lval x, char* op, lval y) {
+	
+	// if err, return value
+	if (x.type == LVAL_ERR) { return x; }
+	if (y.type == LVAL_ERR) { return y; }
+
+	// otherwise evaluate
+	if (strcmp(op, "+") == 0) { return lval_num(x.num + y.num); }
+	if (strcmp(op, "-") == 0) { return lval_num(x.num - y.num); }
+	if (strcmp(op, "*") == 0) { return lval_num(x.num * y.num); }
+	if (strcmp(op, "/") == 0) { 
+		// if second operand is zero return error
+		return y.num == 0 
+		? lval_err(LERR_DIV_ZERO) 
+		: lval_num(x.num / y.num);
+	}
+	
+	return lval_err(LERR_BAD_OP);
 }
 
 
