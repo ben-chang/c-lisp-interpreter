@@ -1,2 +1,2 @@
 # c-lisp-interpreter
-based on: https://www.buildyourownlisp.com
+based on: http://www.buildyourownlisp.com
